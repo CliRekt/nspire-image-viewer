@@ -1,0 +1,49 @@
+name: Build Image Viewer App
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies & ARM Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi binutils-arm-none-eabi make git build-essential libboost-all-dev libgmp-dev libmpfr-dev libmpc-dev dos2unix
+
+      - name: Set up Ndless SDK
+        run: |
+          git clone --recursive https://github.com/Ndless-Nspire/Ndless.git /tmp/Ndless
+          
+          sed -i '/get_current_dir_name/i #ifndef PATH_MAX\n#define PATH_MAX 4096\n#endif' /tmp/Ndless/ndless-sdk/libsyscalls/stdlib.cpp
+          
+          echo "/tmp/Ndless/ndless-sdk/bin" >> $GITHUB_PATH
+          echo "NDLESS_SDK=/tmp/Ndless/ndless-sdk" >> $GITHUB_ENV
+          export PATH="/tmp/Ndless/ndless-sdk/bin:$PATH"
+          export NDLESS_SDK="/tmp/Ndless/ndless-sdk"
+          
+          make -C /tmp/Ndless/ndless-sdk build-tools
+          make -C /tmp/Ndless/ndless-sdk build-libsyscalls build-libndls build-thirdparty build-system
+
+          sed -i 's/REVERSE(\([^)]*\))/\1/g' /tmp/Ndless/ndless-sdk/system/ldscript
+          dos2unix /tmp/Ndless/ndless-sdk/system/ldscript
+
+      - name: Build App
+        run: |
+          export PATH="/tmp/Ndless/ndless-sdk/bin:$PATH"
+          export NDLESS_SDK=/tmp/Ndless/ndless-sdk
+          make clean || true
+          make
+
+      - name: Upload .tns Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: imageviewer-nspire-build
+          path: '**/*.tns'
