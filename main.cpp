@@ -12,6 +12,9 @@ extern "C" void _fini(void) {}
 #define SCREEN_W 320
 #define SCREEN_H 240
 
+// Off-screen 16-bit (RGB565) frame buffer
+static uint16_t framebuffer[SCREEN_W * SCREEN_H];
+
 class ImageViewer {
 private:
     std::vector<std::string> file_list;
@@ -49,8 +52,7 @@ private:
 
         fseek(f, dataOffset, SEEK_SET);
 
-        uint16_t* screen = (uint16_t*)SCREEN_BASE_ADDRESS;
-        clearScreen();
+        memset(framebuffer, 0, sizeof(framebuffer));
 
         bool flipY = height > 0;
         if (height < 0) height = -height;
@@ -70,12 +72,15 @@ private:
                 uint8_t g = rowBuffer[x * bytesPerPixel + 1];
                 uint8_t r = rowBuffer[x * bytesPerPixel + 2];
 
-                screen[targetY * SCREEN_W + x] = rgbTo565(r, g, b);
+                framebuffer[targetY * SCREEN_W + x] = rgbTo565(r, g, b);
             }
         }
 
         free(rowBuffer);
         fclose(f);
+
+        // Render buffer directly to LCD screen
+        lcd_blit(framebuffer, SCR_320x240_565);
         return true;
     }
 
@@ -98,19 +103,15 @@ public:
     }
 
     void run() {
-        assert_ndless_compatibility();
-        lcd_ingame_setup();
-
         scanDirectory("/documents/images");
         scanDirectory("/documents");
 
         if (file_list.empty()) {
-            clearScreen();
-            drawString(10, 10, "No .bmp images found!", 0xF808, 0x0000);
-            drawString(10, 35, "Copy .bmp files into /documents or", 0xFFFF, 0x0000);
-            drawString(10, 55, "/documents/images on your calculator.", 0xFFFF, 0x0000);
-            drawString(10, 90, "Press ESC to exit.", 0x07E0, 0x0000);
-            repaint();
+            // Display a red screen if no BMPs are found
+            for (int i = 0; i < SCREEN_W * SCREEN_H; i++) {
+                framebuffer[i] = 0xF800;
+            }
+            lcd_blit(framebuffer, SCR_320x240_565);
 
             while (!isKeyPressed(KEY_NSPIRE_ESC)) {
                 msleep(50);
@@ -123,18 +124,12 @@ public:
         while (!isKeyPressed(KEY_NSPIRE_ESC)) {
             if (renderNeeded) {
                 if (!loadBMP(file_list[current_index].c_str())) {
-                    clearScreen();
-                    drawString(10, 10, "Failed to load BMP:", 0xF808, 0x0000);
-                    drawString(10, 30, file_list[current_index].c_str(), 0xFFFF, 0x0000);
-                    drawString(10, 55, "(Must be uncompressed 24/32-bit BMP)", 0xC67A, 0x0000);
+                    // Display a dark blue screen if image fails to load
+                    for (int i = 0; i < SCREEN_W * SCREEN_H; i++) {
+                        framebuffer[i] = 0x1D13;
+                    }
+                    lcd_blit(framebuffer, SCR_320x240_565);
                 }
-
-                char overlay[128];
-                snprintf(overlay, sizeof(overlay), "< [%d/%d] %s >", 
-                         current_index + 1, (int)file_list.size(), 
-                         file_list[current_index].c_str());
-                drawString(5, 225, overlay, 0xFFFF, 0x0000);
-                repaint();
 
                 renderNeeded = false;
             }
