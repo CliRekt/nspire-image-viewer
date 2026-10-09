@@ -6,7 +6,7 @@ LD = nspire-g++
 GENZEHN = genzehn
 
 CXXFLAGS = -Wall -Wextra -O2 -std=c++17
-LDFLAGS = -lndls
+LDFLAGS = -lndls -lm -lc -lgcc
 
 all: $(EXE).tns
 
@@ -21,3 +21,5 @@ $(EXE).tns: $(EXE).elf
 
 clean:
 	rm -f $(OBJS) $(EXE).elf $(EXE).tns
+
+.PHONY: all clean
