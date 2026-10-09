@@ -110,7 +110,7 @@ public:
             repaint();
 
             while (!isKeyPressed(KEY_NSPIRE_ESC)) {
-                sleep(50);
+                msleep(50);
             }
             return;
         }
@@ -139,14 +139,14 @@ public:
             if (isKeyPressed(KEY_NSPIRE_RIGHT)) {
                 current_index = (current_index + 1) % file_list.size();
                 renderNeeded = true;
-                sleep(200);
+                msleep(200);
             } else if (isKeyPressed(KEY_NSPIRE_LEFT)) {
                 current_index = (current_index - 1 + file_list.size()) % file_list.size();
                 renderNeeded = true;
-                sleep(200);
+                msleep(200);
             }
 
-            sleep(20);
+            msleep(20);
         }
     }
 };
