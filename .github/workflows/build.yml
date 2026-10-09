@@ -13,6 +13,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Cache Ndless SDK
+        uses: actions/cache@v4
+        with:
+          path: /tmp/Ndless
+          key: ndless-sdk-${{ runner.os }}
+          restore-keys: |
+            ndless-sdk-${{ runner.os }}
+
       - name: Install Dependencies & ARM Toolchain
         run: |
           sudo apt-get update
@@ -32,20 +40,22 @@ jobs:
 
       - name: Set up Ndless SDK
         run: |
-          git clone --recursive https://github.com/Ndless-Nspire/Ndless.git /tmp/Ndless
-          
-          sed -i '/get_current_dir_name/i #ifndef PATH_MAX\n#define PATH_MAX 4096\n#endif' /tmp/Ndless/ndless-sdk/libsyscalls/stdlib.cpp
+          if [ ! -d /tmp/Ndless/ndless-sdk ]; then
+            git clone --recursive https://github.com/Ndless-Nspire/Ndless.git /tmp/Ndless
+            
+            sed -i '/get_current_dir_name/i #ifndef PATH_MAX\n#define PATH_MAX 4096\n#endif' /tmp/Ndless/ndless-sdk/libsyscalls/stdlib.cpp
+            
+            make -C /tmp/Ndless/ndless-sdk build-tools
+            make -C /tmp/Ndless/ndless-sdk build-libsyscalls build-libndls build-thirdparty build-system
+
+            sed -i 's/REVERSE(\([^)]*\))/\1/g' /tmp/Ndless/ndless-sdk/system/ldscript
+            dos2unix /tmp/Ndless/ndless-sdk/system/ldscript
+          fi
           
           echo "/tmp/Ndless/ndless-sdk/bin" >> $GITHUB_PATH
           echo "NDLESS_SDK=/tmp/Ndless/ndless-sdk" >> $GITHUB_ENV
           export PATH="/tmp/Ndless/ndless-sdk/bin:$PATH"
           export NDLESS_SDK="/tmp/Ndless/ndless-sdk"
-          
-          make -C /tmp/Ndless/ndless-sdk build-tools
-          make -C /tmp/Ndless/ndless-sdk build-libsyscalls build-libndls build-thirdparty build-system
-
-          sed -i 's/REVERSE(\([^)]*\))/\1/g' /tmp/Ndless/ndless-sdk/system/ldscript
-          dos2unix /tmp/Ndless/ndless-sdk/system/ldscript
 
       - name: Build App
         run: |
