@@ -2,7 +2,7 @@ EXE = imageviewer
 OBJS = main.o
 
 CXX = nspire-g++
-LD = nspire-ld
+LD = nspire-g++
 GENZEHN = genzehn
 
 CXXFLAGS = -Wall -Wextra -O2 -std=c++17
