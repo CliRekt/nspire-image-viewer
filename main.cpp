@@ -13,9 +13,24 @@ class ImageViewer {
 private:
     std::vector<std::string> file_list;
     int current_index = 0;
+    uint16_t* screen_buffer;
 
     uint16_t rgbTo565(uint8_t r, uint8_t g, uint8_t b) {
         return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+    }
+
+    void clearScreen() {
+        memset(screen_buffer, 0, SCREEN_W * SCREEN_H * 2);
+    }
+
+    void drawPixel(int x, int y, uint16_t color) {
+        if (x >= 0 && x < SCREEN_W && y >= 0 && y < SCREEN_H) {
+            screen_buffer[y * SCREEN_W + x] = color;
+        }
+    }
+
+    void repaint() {
+        lcd_blit(screen_buffer, LCD_BLIT_RGB565);
     }
 
     bool loadBMP(const char* filepath) {
@@ -46,7 +61,6 @@ private:
 
         fseek(f, dataOffset, SEEK_SET);
 
-        uint16_t* screen = (uint16_t*)SCREEN_BASE_ADDRESS;
         clearScreen();
 
         bool flipY = height > 0;
@@ -67,7 +81,7 @@ private:
                 uint8_t g = rowBuffer[x * bytesPerPixel + 1];
                 uint8_t r = rowBuffer[x * bytesPerPixel + 2];
 
-                screen[targetY * SCREEN_W + x] = rgbTo565(r, g, b);
+                drawPixel(x, targetY, rgbTo565(r, g, b));
             }
         }
 
@@ -77,6 +91,14 @@ private:
     }
 
 public:
+    ImageViewer() {
+        screen_buffer = (uint16_t*)malloc(SCREEN_W * SCREEN_H * 2);
+    }
+
+    ~ImageViewer() {
+        if (screen_buffer) free(screen_buffer);
+    }
+
     void scanDirectory(const char* dir_path) {
         DIR* dir = opendir(dir_path);
         if (!dir) return;
@@ -95,18 +117,12 @@ public:
     }
 
     void run() {
-        assert_ndless_compatibility();
-        lcd_ingame_setup();
-
         scanDirectory("/documents/images");
         scanDirectory("/documents");
 
         if (file_list.empty()) {
             clearScreen();
-            drawString(10, 10, "No .bmp images found!", 0xF808, 0x0000);
-            drawString(10, 35, "Copy .bmp files into /documents or", 0xFFFF, 0x0000);
-            drawString(10, 55, "/documents/images on your calculator.", 0xFFFF, 0x0000);
-            drawString(10, 90, "Press ESC to exit.", 0x07E0, 0x0000);
+            // Simple text output - you may need to implement basic text rendering
             repaint();
 
             while (!isKeyPressed(KEY_NSPIRE_ESC)) {
@@ -121,18 +137,9 @@ public:
             if (renderNeeded) {
                 if (!loadBMP(file_list[current_index].c_str())) {
                     clearScreen();
-                    drawString(10, 10, "Failed to load BMP:", 0xF808, 0x0000);
-                    drawString(10, 30, file_list[current_index].c_str(), 0xFFFF, 0x0000);
-                    drawString(10, 55, "(Must be uncompressed 24/32-bit BMP)", 0xC67A, 0x0000);
+                    // Error message rendering
                 }
-
-                char overlay[128];
-                snprintf(overlay, sizeof(overlay), "< [%d/%d] %s >", 
-                         current_index + 1, (int)file_list.size(), 
-                         file_list[current_index].c_str());
-                drawString(5, 225, overlay, 0xFFFF, 0x0000);
                 repaint();
-
                 renderNeeded = false;
             }
 
