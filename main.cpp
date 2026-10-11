@@ -14,6 +14,69 @@ extern "C" void _fini(void) {}
 
 static uint16_t framebuffer[SCREEN_W * SCREEN_H];
 
+// Minimal 8x8 ASCII font table (characters 32 to 90)
+static const uint8_t font8x8[59][8] = {
+    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}, // ' '
+    {0x18,0x3C,0x3C,0x18,0x18,0x00,0x18,0x00}, // '!'
+    {0x66,0x66,0x24,0x00,0x00,0x00,0x00,0x00}, // '"'
+    {0x6C,0x6C,0xFE,0x6C,0xFE,0x6C,0x6C,0x00}, // '#'
+    {0x18,0x3E,0x60,0x3C,0x06,0x7C,0x18,0x00}, // '$'
+    {0x00,0x66,0x6C,0x18,0x30,0x66,0x46,0x00}, // '%'
+    {0x38,0x6C,0x38,0x76,0xDC,0xCC,0x76,0x00}, // '&'
+    {0x18,0x18,0x30,0x00,0x00,0x00,0x00,0x00}, // '\''
+    {0x0C,0x18,0x30,0x30,0x30,0x18,0x0C,0x00}, // '('
+    {0x30,0x18,0x0C,0x0C,0x0C,0x18,0x30,0x00}, // ')'
+    {0x00,0x66,0x3C,0xFF,0x3C,0x66,0x00,0x00}, // '*'
+    {0x00,0x18,0x18,0x7E,0x18,0x18,0x00,0x00}, // '+'
+    {0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x30}, // ','
+    {0x00,0x00,0x00,0x7E,0x00,0x00,0x00,0x00}, // '-'
+    {0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x00}, // '.'
+    {0x06,0x0C,0x18,0x30,0x60,0xC0,0x80,0x00}, // '/'
+    {0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0x00}, // '0'
+    {0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00}, // '1'
+    {0x3C,0x66,0x0C,0x18,0x30,0x60,0x7E,0x00}, // '2'
+    {0x3C,0x66,0x06,0x1C,0x06,0x66,0x3C,0x00}, // '3'
+    {0x0C,0x1C,0x3C,0x6C,0x7E,0x0C,0x0C,0x00}, // '4'
+    {0x7E,0x60,0x7C,0x06,0x06,0x66,0x3C,0x00}, // '5'
+    {0x3C,0x66,0x60,0x7C,0x66,0x66,0x3C,0x00}, // '6'
+    {0x7E,0x06,0x0C,0x18,0x30,0x30,0x30,0x00}, // '7'
+    {0x3C,0x66,0x66,0x3C,0x66,0x66,0x3C,0x00}, // '8'
+    {0x3C,0x66,0x66,0x3E,0x06,0x66,0x3C,0x00}, // '9'
+    {0x00,0x18,0x18,0x00,0x18,0x18,0x00,0x00}, // ':'
+    {0x00,0x18,0x18,0x00,0x18,0x18,0x30,0x00}, // ';'
+    {0x0C,0x18,0x30,0x60,0x30,0x18,0x0C,0x00}, // '<'
+    {0x00,0x00,0x7E,0x00,0x7E,0x00,0x00,0x00}, // '='
+    {0x30,0x18,0x0C,0x06,0x0C,0x18,0x30,0x00}, // '>'
+    {0x3C,0x66,0x0C,0x18,0x18,0x00,0x18,0x00}, // '?'
+    {0x3C,0x66,0x6E,0x6E,0x60,0x62,0x3C,0x00}, // '@'
+    {0x18,0x3C,0x66,0x66,0x7E,0x66,0x66,0x00}, // 'A'
+    {0x7C,0x66,0x66,0x7C,0x66,0x66,0x7C,0x00}, // 'B'
+    {0x3C,0x66,0x60,0x60,0x60,0x66,0x3C,0x00}, // 'C'
+    {0x78,0x6C,0x66,0x66,0x66,0x6C,0x78,0x00}, // 'D'
+    {0x7E,0x60,0x60,0x7C,0x60,0x60,0x7E,0x00}, // 'E'
+    {0x7E,0x60,0x60,0x7C,0x60,0x60,0x60,0x00}, // 'F'
+    {0x3C,0x66,0x60,0x6E,0x66,0x66,0x3C,0x00}, // 'G'
+    {0x66,0x66,0x66,0x7E,0x66,0x66,0x66,0x00}, // 'H'
+    {0x3C,0x18,0x18,0x18,0x18,0x18,0x3C,0x00}, // 'I'
+    {0x1E,0x0C,0x0C,0x0C,0x0C,0x6C,0x38,0x00}, // 'J'
+    {0x66,0x6C,0x78,0x70,0x78,0x6C,0x66,0x00}, // 'K'
+    {0x60,0x60,0x60,0x60,0x60,0x60,0x7E,0x00}, // 'L'
+    {0x63,0x77,0x7F,0x6B,0x63,0x63,0x63,0x00}, // 'M'
+    {0x66,0x76,0x7E,0x7E,0x6E,0x66,0x66,0x00}, // 'N'
+    {0x3C,0x66,0x66,0x66,0x66,0x66,0x3C,0x00}, // 'O'
+    {0x7C,0x66,0x66,0x7C,0x60,0x60,0x60,0x00}, // 'P'
+    {0x3C,0x66,0x66,0x66,0x6A,0x6C,0x36,0x00}, // 'Q'
+    {0x7C,0x66,0x66,0x7C,0x6C,0x66,0x66,0x00}, // 'R'
+    {0x3C,0x66,0x60,0x3C,0x06,0x66,0x3C,0x00}, // 'S'
+    {0x7E,0x18,0x18,0x18,0x18,0x18,0x18,0x00}, // 'T'
+    {0x66,0x66,0x66,0x66,0x66,0x66,0x3C,0x00}, // 'U'
+    {0x66,0x66,0x66,0x66,0x66,0x3C,0x18,0x00}, // 'V'
+    {0x63,0x63,0x63,0x6B,0x7F,0x77,0x63,0x00}, // 'W'
+    {0x66,0x66,0x3C,0x18,0x3C,0x66,0x66,0x00}, // 'X'
+    {0x66,0x66,0x66,0x3C,0x18,0x18,0x18,0x00}, // 'Y'
+    {0x7E,0x06,0x0C,0x18,0x30,0x60,0x7E,0x00}  // 'Z'
+};
+
 class ImageViewer {
 private:
     std::vector<std::string> file_list;
@@ -24,21 +87,68 @@ private:
         return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
     }
 
-    // Fast check to see if a file has the BMP magic header "BM"
-    bool isBMPFile(const char* filepath) {
-        FILE* f = fopen(filepath, "rb");
-        if (!f) return false;
+    void drawChar(int x, int y, char c, uint16_t color) {
+        c = std::toupper(c);
+        if (c < 32 || c > 90) c = '?';
+        int idx = c - 32;
 
-        unsigned char magic[2];
-        size_t read_bytes = fread(magic, 1, 2, f);
-        fclose(f);
+        for (int row = 0; row < 8; row++) {
+            uint8_t bits = font8x8[idx][row];
+            for (int col = 0; col < 8; col++) {
+                if (bits & (0x80 >> col)) {
+                    int px = x + col;
+                    int py = y + row;
+                    if (px >= 0 && px < SCREEN_W && py >= 0 && py < SCREEN_H) {
+                        framebuffer[py * SCREEN_W + px] = color;
+                    }
+                }
+            }
+        }
+    }
 
-        return (read_bytes == 2 && magic[0] == 'B' && magic[1] == 'M');
+    void drawText(int x, int y, const char* str, uint16_t color) {
+        while (*str) {
+            drawChar(x, y, *str, color);
+            x += 8;
+            str++;
+        }
+    }
+
+    // Scans the first 1024 bytes of any file to locate a valid BMP header offset
+    long findValidBMPHeaderOffset(FILE* f) {
+        if (!f) return -1;
+
+        fseek(f, 0, SEEK_SET);
+        unsigned char buf[1024];
+        size_t bytesRead = fread(buf, 1, sizeof(buf), f);
+
+        for (size_t i = 0; i + 54 <= bytesRead; i++) {
+            if (buf[i] == 'B' && buf[i+1] == 'M') {
+                uint16_t bpp  = *(uint16_t*)&buf[i + 28];
+                uint32_t comp = *(uint32_t*)&buf[i + 30];
+                int32_t  w    = *(int32_t*)&buf[i + 18];
+                int32_t  h    = *(int32_t*)&buf[i + 22];
+
+                // Validate that this is a 24-bit or 32-bit uncompressed BMP image
+                if ((bpp == 24 || bpp == 32) && comp == 0 && w > 0 && w <= 2048 && abs(h) <= 2048) {
+                    return (long)i;
+                }
+            }
+        }
+        return -1;
     }
 
     bool loadBMP(const char* filepath, int rot) {
         FILE* f = fopen(filepath, "rb");
         if (!f) return false;
+
+        long bmpOffset = findValidBMPHeaderOffset(f);
+        if (bmpOffset < 0) {
+            fclose(f);
+            return false;
+        }
+
+        fseek(f, bmpOffset, SEEK_SET);
 
         unsigned char header[54];
         if (fread(header, 1, 54, f) != 54) {
@@ -46,12 +156,7 @@ private:
             return false;
         }
 
-        if (header[0] != 'B' || header[1] != 'M') {
-            fclose(f);
-            return false;
-        }
-
-        uint32_t dataOffset  = *(uint32_t*)&header[10];
+        uint32_t dataOffset  = *(uint32_t*)&header[10] + bmpOffset;
         int32_t  width       = *(int32_t*)&header[18];
         int32_t  height      = *(int32_t*)&header[22];
         uint16_t bpp        = *(uint16_t*)&header[28];
@@ -86,16 +191,9 @@ private:
                 int destX = x;
                 int destY = srcY;
 
-                if (rot == 1) { // 90° CW
-                    destX = 279 - srcY;
-                    destY = x - 40;
-                } else if (rot == 2) { // 180° CW
-                    destX = SCREEN_W - 1 - x;
-                    destY = SCREEN_H - 1 - srcY;
-                } else if (rot == 3) { // 270° CW
-                    destX = srcY + 40;
-                    destY = 279 - x;
-                }
+                if (rot == 1) { destX = 279 - srcY; destY = x - 40; }
+                else if (rot == 2) { destX = SCREEN_W - 1 - x; destY = SCREEN_H - 1 - srcY; }
+                else if (rot == 3) { destX = srcY + 40; destY = 279 - x; }
 
                 if (destX >= 0 && destX < SCREEN_W && destY >= 0 && destY < SCREEN_H) {
                     framebuffer[destY * SCREEN_W + destX] = color;
@@ -105,8 +203,6 @@ private:
 
         free(rowBuffer);
         fclose(f);
-
-        lcd_blit(framebuffer, SCR_320x240_565);
         return true;
     }
 
@@ -118,23 +214,20 @@ public:
         struct dirent* entry;
         while ((entry = readdir(dir)) != NULL) {
             std::string name = entry->d_name;
-            std::string lower = name;
-            for (char &c : lower) c = std::tolower(c);
+            if (name == "." || name == "..") continue;
 
-            // Check files ending with .bmp or .tns
-            if (lower.find(".bmp") != std::string::npos || lower.find(".tns") != std::string::npos) {
-                std::string full_path = std::string(dir_path) + "/" + name;
-
-                // Verify the file is actually a BMP image (and skip duplicate entries)
-                if (isBMPFile(full_path.c_str())) {
+            std::string full_path = std::string(dir_path) + "/" + name;
+            FILE* f = fopen(full_path.c_str(), "rb");
+            if (f) {
+                // If it contains a valid BMP header, add it regardless of file extension
+                if (findValidBMPHeaderOffset(f) >= 0) {
                     bool exists = false;
-                    for (const auto& existing : file_list) {
-                        if (existing == full_path) { exists = true; break; }
+                    for (const auto& item : file_list) {
+                        if (item == full_path) { exists = true; break; }
                     }
-                    if (!exists) {
-                        file_list.push_back(full_path);
-                    }
+                    if (!exists) file_list.push_back(full_path);
                 }
+                fclose(f);
             }
         }
         closedir(dir);
@@ -146,58 +239,66 @@ public:
         scanDirectory("/documents/images");
         scanDirectory("/documents/My Images");
 
-        if (file_list.empty()) {
-            for (int i = 0; i < SCREEN_W * SCREEN_H; i++) {
-                framebuffer[i] = 0xF800; // Red screen: No valid BMP headers found
-            }
-            lcd_blit(framebuffer, SCR_320x240_565);
-
-            while (!isKeyPressed(KEY_NSPIRE_ESC) && !isKeyPressed(KEY_NSPIRE_ENTER)) {
-                msleep(50);
-            }
-            while (isKeyPressed(KEY_NSPIRE_ESC) || isKeyPressed(KEY_NSPIRE_ENTER)) {
-                msleep(20);
-            }
-            return;
-        }
-
         bool renderNeeded = true;
 
-        while (!isKeyPressed(KEY_NSPIRE_ESC)) {
+        while (true) {
+            // Exit immediately on ESC, ENTER, or DOC key press
+            if (isKeyPressed(KEY_NSPIRE_ESC) || isKeyPressed(KEY_NSPIRE_ENTER) || isKeyPressed(KEY_NSPIRE_DOC)) {
+                break;
+            }
+
             if (renderNeeded) {
-                if (!loadBMP(file_list[current_index].c_str(), rotation)) {
-                    for (int i = 0; i < SCREEN_W * SCREEN_H; i++) {
-                        framebuffer[i] = 0x1D13; // Blue screen: Failed to parse
+                memset(framebuffer, 0, sizeof(framebuffer));
+
+                if (file_list.empty()) {
+                    drawText(10, 20, "IMAGEVIEWER V1.0", 0xF800);
+                    drawText(10, 50, "NO BMP/TNS IMAGES FOUND!", 0xFFFF);
+                    drawText(10, 80, "TRANSFER 320X240 BMP OR TNS", 0x07E0);
+                    drawText(10, 100, "FILES TO /DOCUMENTS", 0x07E0);
+                    drawText(10, 150, "PRESS ESC OR ENTER TO EXIT", 0xFFE0);
+                } else {
+                    if (!loadBMP(file_list[current_index].c_str(), rotation)) {
+                        drawText(10, 20, "FAILED TO LOAD IMAGE:", 0xF800);
+                        drawText(10, 50, file_list[current_index].c_str(), 0xFFFF);
+                    } else {
+                        // On-screen HUD Bar
+                        char hud[64];
+                        snprintf(hud, sizeof(hud), "[%d/%d] %s", current_index + 1, (int)file_list.size(), file_list[current_index].c_str());
+                        drawText(5, 225, hud, 0x07E0);
                     }
-                    lcd_blit(framebuffer, SCR_320x240_565);
                 }
+
+                lcd_blit(framebuffer, SCR_320x240_565);
                 renderNeeded = false;
             }
 
-            if (isKeyPressed(KEY_NSPIRE_RIGHT)) {
-                current_index = (current_index + 1) % file_list.size();
-                rotation = 0;
-                renderNeeded = true;
-                msleep(200);
-            } else if (isKeyPressed(KEY_NSPIRE_LEFT)) {
-                current_index = (current_index - 1 + file_list.size()) % file_list.size();
-                rotation = 0;
-                renderNeeded = true;
-                msleep(200);
-            } else if (isKeyPressed(KEY_NSPIRE_UP)) {
-                rotation = (rotation + 1) % 4; // 90° CW
-                renderNeeded = true;
-                msleep(200);
-            } else if (isKeyPressed(KEY_NSPIRE_DOWN)) {
-                rotation = (rotation + 3) % 4; // 90° CCW
-                renderNeeded = true;
-                msleep(200);
+            if (!file_list.empty()) {
+                if (isKeyPressed(KEY_NSPIRE_RIGHT)) {
+                    current_index = (current_index + 1) % file_list.size();
+                    rotation = 0;
+                    renderNeeded = true;
+                    msleep(200);
+                } else if (isKeyPressed(KEY_NSPIRE_LEFT)) {
+                    current_index = (current_index - 1 + file_list.size()) % file_list.size();
+                    rotation = 0;
+                    renderNeeded = true;
+                    msleep(200);
+                } else if (isKeyPressed(KEY_NSPIRE_UP)) {
+                    rotation = (rotation + 1) % 4; // 90° CW
+                    renderNeeded = true;
+                    msleep(200);
+                } else if (isKeyPressed(KEY_NSPIRE_DOWN)) {
+                    rotation = (rotation + 3) % 4; // 90° CCW
+                    renderNeeded = true;
+                    msleep(200);
+                }
             }
 
             msleep(20);
         }
 
-        while (isKeyPressed(KEY_NSPIRE_ESC)) {
+        // Debounce exit keys
+        while (isKeyPressed(KEY_NSPIRE_ESC) || isKeyPressed(KEY_NSPIRE_ENTER) || isKeyPressed(KEY_NSPIRE_DOC)) {
             msleep(20);
         }
     }
