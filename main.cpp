@@ -115,6 +115,7 @@ private:
         }
     }
 
+    // BMP detection
     long findValidBMPHeaderOffset(FILE* f) {
         if (!f) return -1;
 
@@ -129,12 +130,67 @@ private:
                 int32_t  w    = *(int32_t*)&buf[i + 18];
                 int32_t  h    = *(int32_t*)&buf[i + 22];
 
-                if ((bpp == 24 || bpp == 32) && (comp == 0 || comp == 3) && w > 0 && w <= 2048 && abs(h) <= 2048) {
+                if ((bpp == 24 || bpp == 32) &&
+                    (comp == 0 || comp == 3) &&
+                    w > 0 && w <= 2048 &&
+                    abs(h) <= 2048) {
                     return (long)i;
                 }
             }
         }
         return -1;
+    }
+
+    // Raw 320x240 16-bit RGB565 loader
+    bool loadRaw565(const char* filepath, int rot) {
+        FILE* f = fopen(filepath, "rb");
+        if (!f) return false;
+
+        fseek(f, 0, SEEK_END);
+        long fileSize = ftell(f);
+        fseek(f, 0, SEEK_SET);
+
+        if (fileSize != (long)(SCREEN_W * SCREEN_H * 2)) {
+            fclose(f);
+            return false;
+        }
+
+        memset(framebuffer, 0, sizeof(framebuffer));
+        uint8_t* src = (uint8_t*)malloc(SCREEN_W * SCREEN_H * 2);
+        if (!src) {
+            fclose(f);
+            return false;
+        }
+
+        if (fread(src, 1, SCREEN_W * SCREEN_H * 2, f) != (size_t)(SCREEN_W * SCREEN_H * 2)) {
+            free(src);
+            fclose(f);
+            return false;
+        }
+
+        for (int y = 0; y < SCREEN_H; y++) {
+            for (int x = 0; x < SCREEN_W; x++) {
+                int srcIndex = (y * SCREEN_W + x) * 2;
+                uint8_t lo = src[srcIndex];
+                uint8_t hi = src[srcIndex + 1];
+                uint16_t color = (uint16_t)hi << 8 | lo;
+
+                int destX = x;
+                int destY = y;
+
+                if (rot == 1) { destX = 279 - y; destY = x - 40; }
+                else if (rot == 2) { destX = SCREEN_W - 1 - x; destY = SCREEN_H - 1 - y; }
+                else if (rot == 3) { destX = y + 40; destY = 279 - x; }
+
+                if (destX >= 0 && destX < SCREEN_W && destY >= 0 && destY < SCREEN_H) {
+                    framebuffer[destY * SCREEN_W + destX] = color;
+                }
+            }
+        }
+
+        free(src);
+        fclose(f);
+        return true;
     }
 
     bool loadBMP(const char* filepath, int rot) {
@@ -214,7 +270,11 @@ private:
     bool isImageCandidate(const std::string& name) {
         std::string lower = name;
         for (char &c : lower) c = std::tolower((unsigned char)c);
-        return lower.find(".bmp") != std::string::npos || lower.find(".tns") != std::string::npos;
+
+        // Accept both BMP and TNS names. Some TI workflows rename files to .tns
+        // even when they are just raw image data.
+        return lower.find(".bmp") != std::string::npos ||
+               lower.find(".tns") != std::string::npos;
     }
 
     void scanDirectory(const char* dir_path) {
@@ -231,18 +291,40 @@ private:
             if (!isImageCandidate(name)) continue;
 
             std::string full_path = std::string(dir_path) + "/" + name;
+
             FILE* f = fopen(full_path.c_str(), "rb");
             if (f) {
+                // Accept valid BMPs first
                 if (findValidBMPHeaderOffset(f) >= 0) {
                     bool alreadyAdded = false;
                     for (const auto& item : file_list) {
                         if (item == full_path) { alreadyAdded = true; break; }
                     }
                     if (!alreadyAdded) file_list.push_back(full_path);
+                    fclose(f);
+                    continue;
                 }
+
+                // If not a BMP, try raw 320x240 RGB565 image
                 fclose(f);
+
+                FILE* raw = fopen(full_path.c_str(), "rb");
+                if (raw) {
+                    fseek(raw, 0, SEEK_END);
+                    long size = ftell(raw);
+                    fclose(raw);
+
+                    if (size == SCREEN_W * SCREEN_H * 2) {
+                        bool alreadyAdded = false;
+                        for (const auto& item : file_list) {
+                            if (item == full_path) { alreadyAdded = true; break; }
+                        }
+                        if (!alreadyAdded) file_list.push_back(full_path);
+                    }
+                }
             }
         }
+
         closedir(dir);
     }
 
@@ -270,12 +352,20 @@ public:
 
                 if (file_list.empty()) {
                     drawText(10, 20, "IMAGEVIEWER V1.0", 0xF800);
-                    drawText(10, 50, "NO IMAGES FOUND!", 0xFFFF);
-                    drawText(10, 80, "PLACE 320X240 BMP FILES", 0x07E0);
-                    drawText(10, 100, "IN /DOCUMENTS OR /MYLIB", 0x07E0);
+                    drawText(10, 50, "NO VALID IMAGES!", 0xFFFF);
+                    drawText(10, 80, "PLACE 320X240 BMP OR TNS", 0x07E0);
+                    drawText(10, 100, "FILES IN /DOCUMENTS", 0x07E0);
                     drawText(10, 150, "PRESS ESC OR ENTER TO EXIT", 0xFFE0);
                 } else {
+                    bool loaded = false;
+
                     if (!loadBMP(file_list[current_index].c_str(), rotation)) {
+                        loaded = loadRaw565(file_list[current_index].c_str(), rotation);
+                    } else {
+                        loaded = true;
+                    }
+
+                    if (!loaded) {
                         drawText(10, 20, "FAILED TO LOAD IMAGE:", 0xF800);
                         drawText(10, 50, file_list[current_index].c_str(), 0xFFFF);
                     } else {
