@@ -206,8 +206,13 @@ private:
         return true;
     }
 
-public:
-    void scanDirectory(const char* dir_path) {
+    bool isImageCandidate(const std::string& name) {
+        std::string lower = name;
+        for (char &c : lower) c = std::tolower((unsigned char)c);
+        return lower.find(".bmp") != std::string::npos || lower.find(".tns") != std::string::npos;
+    }
+
+    void scanDirectory(const char* dir_path, bool recursive = true) {
         DIR* dir = opendir(dir_path);
         if (!dir) return;
 
@@ -216,31 +221,39 @@ public:
             std::string name = entry->d_name;
             if (name == "." || name == "..") continue;
 
-            std::string lower = name;
-            for (char &c : lower) c = std::tolower(c);
+            std::string full_path = std::string(dir_path) + "/" + name;
 
-            // Filter by filename extension first before attempting to open
-            if (lower.find(".bmp") != std::string::npos || lower.find(".tns") != std::string::npos) {
-                std::string full_path = std::string(dir_path) + "/" + name;
-                FILE* f = fopen(full_path.c_str(), "rb");
-                if (f) {
-                    if (findValidBMPHeaderOffset(f) >= 0) {
-                        bool exists = false;
-                        for (const auto& item : file_list) {
-                            if (item == full_path) { exists = true; break; }
-                        }
-                        if (!exists) file_list.push_back(full_path);
-                    }
-                    fclose(f);
+            if (recursive) {
+                DIR* subdir = opendir(full_path.c_str());
+                if (subdir) {
+                    closedir(subdir);
+                    scanDirectory(full_path.c_str(), true);
                 }
+            }
+
+            if (!isImageCandidate(name)) continue;
+
+            FILE* f = fopen(full_path.c_str(), "rb");
+            if (f) {
+                if (findValidBMPHeaderOffset(f) >= 0) {
+                    bool exists = false;
+                    for (const auto& item : file_list) {
+                        if (item == full_path) { exists = true; break; }
+                    }
+                    if (!exists) file_list.push_back(full_path);
+                }
+                fclose(f);
             }
         }
         closedir(dir);
     }
 
+public:
     void run() {
         scanDirectory(".");
         scanDirectory("/documents");
+        scanDirectory("/MyLib");
+        scanDirectory("/mnt/files");
 
         bool renderNeeded = true;
 
@@ -256,8 +269,9 @@ public:
                 if (file_list.empty()) {
                     drawText(10, 20, "IMAGEVIEWER V1.0", 0xF800);
                     drawText(10, 50, "NO IMAGES FOUND!", 0xFFFF);
-                    drawText(10, 80, "PLACE 320X240 BMP OR TNS", 0x07E0);
-                    drawText(10, 100, "FILES IN /DOCUMENTS", 0x07E0);
+                    drawText(10, 80, "PLACE 320X240 BMP FILES", 0x07E0);
+                    drawText(10, 100, "IN /DOCUMENTS, /MYLIB,", 0x07E0);
+                    drawText(10, 120, "OR /MNT/FILES", 0x07E0);
                     drawText(10, 150, "PRESS ESC OR ENTER TO EXIT", 0xFFE0);
                 } else {
                     if (!loadBMP(file_list[current_index].c_str(), rotation)) {
