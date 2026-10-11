@@ -6,6 +6,7 @@
 #include <cctype>
 #include <vector>
 #include <string>
+#include <sys/stat.h>
 
 extern "C" void _fini(void) {}
 
@@ -114,7 +115,6 @@ private:
         }
     }
 
-    // Scans header bytes to locate 'BM' magic marker (supports Preview & TI wrappers)
     long findValidBMPHeaderOffset(FILE* f) {
         if (!f) return -1;
 
@@ -123,13 +123,12 @@ private:
         size_t bytesRead = fread(buf, 1, sizeof(buf), f);
 
         for (size_t i = 0; i + 54 <= bytesRead; i++) {
-            if (buf[i] == 'B' && buf[i+1] == 'M') {
+            if (buf[i] == 'B' && buf[i + 1] == 'M') {
                 uint16_t bpp  = *(uint16_t*)&buf[i + 28];
                 uint32_t comp = *(uint32_t*)&buf[i + 30];
                 int32_t  w    = *(int32_t*)&buf[i + 18];
                 int32_t  h    = *(int32_t*)&buf[i + 22];
 
-                // Accept compression == 0 (BI_RGB) AND compression == 3 (BI_BITFIELDS from Mac Preview)
                 if ((bpp == 24 || bpp == 32) && (comp == 0 || comp == 3) && w > 0 && w <= 2048 && abs(h) <= 2048) {
                     return (long)i;
                 }
@@ -206,13 +205,21 @@ private:
         return true;
     }
 
+    bool isDirectory(const char* path) {
+        struct stat st;
+        if (stat(path, &st) != 0) return false;
+        return S_ISDIR(st.st_mode);
+    }
+
     bool isImageCandidate(const std::string& name) {
         std::string lower = name;
         for (char &c : lower) c = std::tolower((unsigned char)c);
         return lower.find(".bmp") != std::string::npos || lower.find(".tns") != std::string::npos;
     }
 
-    void scanDirectory(const char* dir_path, bool recursive = true) {
+    void scanDirectory(const char* dir_path) {
+        if (!dir_path || !isDirectory(dir_path)) return;
+
         DIR* dir = opendir(dir_path);
         if (!dir) return;
 
@@ -221,26 +228,17 @@ private:
             std::string name = entry->d_name;
             if (name == "." || name == "..") continue;
 
-            std::string full_path = std::string(dir_path) + "/" + name;
-
-            if (recursive) {
-                DIR* subdir = opendir(full_path.c_str());
-                if (subdir) {
-                    closedir(subdir);
-                    scanDirectory(full_path.c_str(), true);
-                }
-            }
-
             if (!isImageCandidate(name)) continue;
 
+            std::string full_path = std::string(dir_path) + "/" + name;
             FILE* f = fopen(full_path.c_str(), "rb");
             if (f) {
                 if (findValidBMPHeaderOffset(f) >= 0) {
-                    bool exists = false;
+                    bool alreadyAdded = false;
                     for (const auto& item : file_list) {
-                        if (item == full_path) { exists = true; break; }
+                        if (item == full_path) { alreadyAdded = true; break; }
                     }
-                    if (!exists) file_list.push_back(full_path);
+                    if (!alreadyAdded) file_list.push_back(full_path);
                 }
                 fclose(f);
             }
@@ -254,14 +252,18 @@ public:
         scanDirectory("/documents");
         scanDirectory("/MyLib");
         scanDirectory("/mnt/files");
+        scanDirectory("/home/user/Documents");
 
         bool renderNeeded = true;
+        bool exitHeld = false;
 
         while (true) {
-            // Exit immediately on ESC, ENTER, or DOC key press
-            if (isKeyPressed(KEY_NSPIRE_ESC) || isKeyPressed(KEY_NSPIRE_ENTER) || isKeyPressed(KEY_NSPIRE_DOC)) {
-                break;
-            }
+            bool escapePressed = isKeyPressed(KEY_NSPIRE_ESC);
+            bool enterPressed = isKeyPressed(KEY_NSPIRE_ENTER);
+            bool docPressed = isKeyPressed(KEY_NSPIRE_DOC);
+
+            if ((escapePressed || enterPressed || docPressed) && !exitHeld) break;
+            exitHeld = escapePressed || enterPressed || docPressed;
 
             if (renderNeeded) {
                 memset(framebuffer, 0, sizeof(framebuffer));
@@ -270,8 +272,7 @@ public:
                     drawText(10, 20, "IMAGEVIEWER V1.0", 0xF800);
                     drawText(10, 50, "NO IMAGES FOUND!", 0xFFFF);
                     drawText(10, 80, "PLACE 320X240 BMP FILES", 0x07E0);
-                    drawText(10, 100, "IN /DOCUMENTS, /MYLIB,", 0x07E0);
-                    drawText(10, 120, "OR /MNT/FILES", 0x07E0);
+                    drawText(10, 100, "IN /DOCUMENTS OR /MYLIB", 0x07E0);
                     drawText(10, 150, "PRESS ESC OR ENTER TO EXIT", 0xFFE0);
                 } else {
                     if (!loadBMP(file_list[current_index].c_str(), rotation)) {
@@ -313,7 +314,6 @@ public:
             msleep(20);
         }
 
-        // Clean exit debounce
         msleep(100);
     }
 };
